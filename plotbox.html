@@ -1,0 +1,527 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>PlotBox - 小説プロット作成ツール</title>
+<style>
+:root{
+  --bg:#f5f5f2;
+  --panel:#ffffff;
+  --text:#1d1d1f;
+  --muted:#6e6e73;
+  --line:#deded8;
+  --accent:#252525;
+  --soft:#efefe9;
+  --danger:#a33;
+  --ok:#2b6b45;
+  --shadow:0 10px 30px rgba(0,0,0,.06);
+}
+*{box-sizing:border-box}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Sans","Yu Gothic UI","Yu Gothic",sans-serif;
+  background:var(--bg);
+  color:var(--text);
+}
+button,input,textarea,select{font:inherit}
+button{cursor:pointer}
+header{
+  position:sticky;top:0;z-index:10;
+  background:rgba(245,245,242,.94);
+  backdrop-filter:blur(10px);
+  border-bottom:1px solid var(--line);
+}
+.header-inner{
+  max-width:1180px;margin:auto;padding:14px 20px;
+  display:flex;gap:14px;align-items:center;justify-content:space-between;
+}
+.brand{font-weight:800;letter-spacing:.02em}
+.brand small{font-weight:500;color:var(--muted);margin-left:8px}
+.actions{display:flex;flex-wrap:wrap;gap:8px}
+button{
+  border:1px solid var(--line);background:var(--panel);color:var(--text);
+  border-radius:10px;padding:8px 12px;
+}
+button:hover{background:var(--soft)}
+button.primary{background:var(--accent);color:white;border-color:var(--accent)}
+button.danger{color:var(--danger)}
+main{
+  max-width:1180px;margin:0 auto;padding:24px 20px 80px;
+  display:grid;grid-template-columns:290px minmax(0,1fr);gap:22px;
+}
+.sidebar,.workspace{min-width:0}
+.card{
+  background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  box-shadow:var(--shadow);padding:16px;margin-bottom:16px;
+}
+h1,h2,h3,p{margin-top:0}
+h2{font-size:18px;margin-bottom:12px}
+label{
+  display:block;font-size:12px;font-weight:700;color:var(--muted);
+  margin:12px 0 6px;
+}
+input,textarea,select{
+  width:100%;border:1px solid var(--line);border-radius:10px;
+  padding:10px 11px;background:#fff;color:var(--text);outline:none;
+}
+input:focus,textarea:focus,select:focus{border-color:#888}
+textarea{min-height:88px;resize:vertical;line-height:1.6}
+.mode-grid{display:grid;gap:8px}
+.mode-btn{text-align:left;padding:10px 12px}
+.mode-btn.active{background:var(--accent);color:white;border-color:var(--accent)}
+.hint{font-size:12px;color:var(--muted);line-height:1.6}
+.status{
+  display:flex;align-items:center;justify-content:space-between;gap:8px;
+  font-size:12px;color:var(--muted);
+}
+.progress{
+  height:7px;background:var(--soft);border-radius:99px;overflow:hidden;margin-top:8px;
+}
+.progress > div{height:100%;background:var(--accent);width:0}
+.top-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.scene{
+  background:var(--panel);border:1px solid var(--line);border-radius:16px;
+  margin-bottom:14px;overflow:hidden;
+}
+.scene-head{
+  padding:12px 14px;border-bottom:1px solid var(--line);
+  display:flex;gap:10px;align-items:center;justify-content:space-between;
+  background:#fafaf7;
+}
+.scene-title{font-weight:800}
+.scene-controls{display:flex;gap:6px;flex-wrap:wrap}
+.scene-controls button{padding:5px 8px;font-size:12px}
+.scene-body{padding:14px}
+.scene-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.scene-grid .full{grid-column:1/-1}
+.badge{
+  display:inline-block;padding:3px 7px;border-radius:999px;
+  background:var(--soft);font-size:11px;color:var(--muted);margin-left:6px;
+}
+.badge.ok{color:var(--ok);background:#edf6ef}
+.badge.warn{color:#885b00;background:#fff6dd}
+.toolbar{
+  display:flex;align-items:center;justify-content:space-between;gap:12px;
+  margin:4px 0 14px;
+}
+.toolbar h2{margin:0}
+.empty{
+  text-align:center;color:var(--muted);padding:42px 20px;
+  border:1px dashed var(--line);border-radius:16px;background:rgba(255,255,255,.5)
+}
+.note{
+  padding:12px;border-left:3px solid var(--accent);background:var(--soft);
+  border-radius:8px;font-size:13px;line-height:1.65;
+}
+summary{cursor:pointer;font-weight:700}
+details .hint{margin-top:10px}
+@media (max-width:820px){
+  main{grid-template-columns:1fr}
+  header{position:static}
+  .top-grid,.scene-grid{grid-template-columns:1fr}
+  .scene-grid .full{grid-column:auto}
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="header-inner">
+    <div class="brand">PlotBox <small>小説プロット作成ツール</small></div>
+    <div class="actions">
+      <button id="saveBtn">保存</button>
+      <button id="loadBtn">読込</button>
+      <button id="exportMdBtn">Markdown</button>
+      <button id="exportJsonBtn">JSON</button>
+      <button id="resetBtn" class="danger">初期化</button>
+    </div>
+  </div>
+</header>
+
+<main>
+  <aside class="sidebar">
+    <div class="card">
+      <h2>プロット形式</h2>
+      <div class="mode-grid" id="modeGrid"></div>
+      <p class="hint" id="modeHint"></p>
+    </div>
+
+    <div class="card">
+      <h2>作品の芯</h2>
+      <label>タイトル・仮題</label>
+      <input id="title" placeholder="例：膝の上の争奪戦" />
+      <label>一行でいうと</label>
+      <textarea id="logline" placeholder="誰が、何を望み、何に邪魔され、どうなる話か。"></textarea>
+      <label>主人公</label>
+      <input id="hero" placeholder="名前" />
+      <label>欲しいもの</label>
+      <textarea id="want" placeholder="主人公が本当に欲しいもの"></textarea>
+      <label>怖いもの</label>
+      <textarea id="fear" placeholder="失いたくないもの、避けたいこと"></textarea>
+      <label>勘違い・思い込み</label>
+      <textarea id="belief" placeholder="本人が信じ込んでいること"></textarea>
+    </div>
+
+    <div class="card">
+      <div class="status">
+        <span>入力充実度</span>
+        <strong id="scoreText">0%</strong>
+      </div>
+      <div class="progress"><div id="progressBar"></div></div>
+      <p class="hint" id="scoreHint" style="margin-top:10px"></p>
+    </div>
+
+    <div class="card">
+      <details>
+        <summary>箱を膨らませる質問</summary>
+        <div class="hint">
+          ・一番困っているのは誰か<br>
+          ・何を隠しているか<br>
+          ・何を言いたいのに言えないか<br>
+          ・相手は何を勘違いしているか<br>
+          ・途中で何が予想外に起きるか<br>
+          ・いちばん気まずい行動は何か<br>
+          ・誰が優位で始まり、誰が優位で終わるか<br>
+          ・この場面を削ると何が分からなくなるか
+        </div>
+      </details>
+    </div>
+  </aside>
+
+  <section class="workspace">
+    <div class="card top-grid">
+      <div>
+        <label>物語の始まり</label>
+        <textarea id="startState" placeholder="最初、主人公はどういう状態か。"></textarea>
+      </div>
+      <div>
+        <label>物語の変化</label>
+        <textarea id="endChange" placeholder="最後、主人公や関係はどう変わったか。"></textarea>
+      </div>
+      <div>
+        <label>最大の危機</label>
+        <textarea id="crisis" placeholder="いちばん失いそうになるものは何か。"></textarea>
+      </div>
+      <div>
+        <label>余韻・オチ</label>
+        <textarea id="ending" placeholder="読後に残す最後の場面や一文。"></textarea>
+      </div>
+    </div>
+
+    <div class="toolbar">
+      <h2 id="sectionTitle">箱書き</h2>
+      <button id="addSceneBtn" class="primary">＋ 箱を追加</button>
+    </div>
+
+    <div id="scenes"></div>
+  </section>
+</main>
+
+<script>
+const MODES = {
+  simple: {
+    name:"超簡易",
+    hint:"物語全体の骨組みを先に決めたいとき。自由な箱を追加できます。",
+    preset:["始まり","きっかけ","目的","障害","悪化","最大の危機","決断","結末","変化","余韻・オチ"]
+  },
+  five: {
+    name:"短編5箱",
+    hint:"キャラクター短編向け。異変→反応→悪化→本音→決着。",
+    preset:["異変","反応","悪化","本音","決着"]
+  },
+  eight: {
+    name:"8箱",
+    hint:"少し長めの短編や一章向け。事件と対処、失敗、決断まで追いやすい形。",
+    preset:["日常","予兆","事件","最初の対処","失敗・悪化","真相・本音","決断・対決","結末"]
+  },
+  emotion: {
+    name:"感情の箱",
+    hint:"出来事より感情変化を重視。人物の否認や露呈を軸に組み立てます。",
+    preset:["平常","刺激","否認","抵抗","破綻","露呈","受容","新しい関係"]
+  },
+  long: {
+    name:"長編三層",
+    hint:"大箱・中箱・小箱の考え方で章や場面を管理。必要なだけ箱を増やしてください。",
+    preset:["大箱：物語全体","中箱：第1章","小箱：第1場面"]
+  }
+};
+
+let state = {
+  mode:"five",
+  meta:{},
+  scenes:[]
+};
+
+const metaIds = ["title","logline","hero","want","fear","belief","startState","endChange","crisis","ending"];
+
+function uid(){
+  return "s" + Date.now().toString(36) + Math.random().toString(36).slice(2,7);
+}
+
+function blankScene(label, i){
+  return {
+    id:uid(),
+    label:label || `箱 ${i+1}`,
+    place:"",
+    time:"",
+    pov:"",
+    desire:"",
+    obstacle:"",
+    action:"",
+    result:"",
+    next:"",
+    emotionStart:"",
+    emotionEnd:"",
+    memo:""
+  };
+}
+
+function initMode(mode, preserve=false){
+  state.mode = mode;
+  if(!preserve || state.scenes.length === 0){
+    state.scenes = MODES[mode].preset.map((x,i)=>blankScene(x,i));
+  }
+  renderModes();
+  renderScenes();
+  updateScore();
+}
+
+function renderModes(){
+  const box = document.getElementById("modeGrid");
+  box.innerHTML = "";
+  Object.entries(MODES).forEach(([key,m])=>{
+    const b = document.createElement("button");
+    b.className = "mode-btn" + (state.mode===key ? " active":"");
+    b.textContent = m.name;
+    b.onclick = ()=>{
+      if(state.mode === key) return;
+      if(state.scenes.some(s=>Object.values(s).some(v=>typeof v==="string" && v.trim()))){
+        const ok = confirm("現在の箱を、この形式の初期箱に置き換えますか？\n「キャンセル」を押すと箱の内容を残して形式名だけ変更します。");
+        if(ok) initMode(key,false);
+        else { state.mode=key; renderModes(); document.getElementById("modeHint").textContent=MODES[key].hint; }
+      }else initMode(key,false);
+    };
+    box.appendChild(b);
+  });
+  document.getElementById("modeHint").textContent = MODES[state.mode].hint;
+  document.getElementById("sectionTitle").textContent = `${MODES[state.mode].name}の箱`;
+}
+
+function sceneCompleteness(s){
+  const core = ["desire","obstacle","action","result"];
+  const filled = core.filter(k=>(s[k]||"").trim()).length;
+  return filled;
+}
+
+function sceneBadge(s){
+  const n = sceneCompleteness(s);
+  if(n===4) return '<span class="badge ok">欲望→障害→行動→結果 OK</span>';
+  if(n>=2) return `<span class="badge warn">基本要素 ${n}/4</span>`;
+  return `<span class="badge">基本要素 ${n}/4</span>`;
+}
+
+function field(label,key,value,placeholder="",full=false){
+  return `<div class="${full?"full":""}">
+    <label>${label}</label>
+    <textarea data-key="${key}" placeholder="${placeholder}">${escapeHtml(value||"")}</textarea>
+  </div>`;
+}
+
+function smallField(label,key,value,placeholder=""){
+  return `<div>
+    <label>${label}</label>
+    <input data-key="${key}" value="${escapeAttr(value||"")}" placeholder="${placeholder}">
+  </div>`;
+}
+
+function renderScenes(){
+  const root = document.getElementById("scenes");
+  root.innerHTML = "";
+  if(!state.scenes.length){
+    root.innerHTML = '<div class="empty">箱がありません。「＋ 箱を追加」から作れます。</div>';
+    return;
+  }
+  state.scenes.forEach((s,i)=>{
+    const el = document.createElement("div");
+    el.className = "scene";
+    el.innerHTML = `
+      <div class="scene-head">
+        <div class="scene-title">${i+1}. <span class="scene-label">${escapeHtml(s.label)}</span>${sceneBadge(s)}</div>
+        <div class="scene-controls">
+          <button data-act="up" ${i===0?"disabled":""}>↑</button>
+          <button data-act="down" ${i===state.scenes.length-1?"disabled":""}>↓</button>
+          <button data-act="dup">複製</button>
+          <button data-act="del" class="danger">削除</button>
+        </div>
+      </div>
+      <div class="scene-body">
+        <label>箱の名前</label>
+        <input data-key="label" value="${escapeAttr(s.label)}">
+        <div class="scene-grid">
+          ${smallField("場所","place",s.place,"例：リビング")}
+          ${smallField("時間","time",s.time,"例：夕方")}
+          ${smallField("視点人物","pov",s.pov,"例：ココア")}
+          ${smallField("開始時の感情","emotionStart",s.emotionStart,"例：余裕")}
+          ${field("この場面で人物が欲しいもの","desire",s.desire,"何を得たい、したい、避けたい？")}
+          ${field("邪魔するもの","obstacle",s.obstacle,"人物・状況・誤解・内面の抵抗など")}
+          ${field("人物が取る行動","action",s.action,"その欲望のために何をする？")}
+          ${field("その結果","result",s.result,"成功・失敗・予想外の変化")}
+          ${field("次の場面につながる問題","next",s.next,"何が未解決のまま残る？")}
+          ${field("終了時の感情","emotionEnd",s.emotionEnd,"例：羞恥、安心、焦り")}
+          ${field("メモ","memo",s.memo,"台詞、伏線、描写、思いつきなど",true)}
+        </div>
+      </div>`;
+
+    el.querySelectorAll("[data-key]").forEach(inp=>{
+      inp.addEventListener("input", e=>{
+        s[e.target.dataset.key] = e.target.value;
+        if(["desire","obstacle","action","result"].includes(e.target.dataset.key)){
+          const title = el.querySelector(".scene-title");
+          title.innerHTML = `${i+1}. <span class="scene-label">${escapeHtml(s.label)}</span>${sceneBadge(s)}`;
+        } else if(e.target.dataset.key==="label"){
+          el.querySelector(".scene-label").textContent = e.target.value;
+        }
+        updateScore();
+      });
+    });
+
+    el.querySelectorAll("[data-act]").forEach(btn=>{
+      btn.onclick = ()=>{
+        const act = btn.dataset.act;
+        if(act==="up" && i>0){
+          [state.scenes[i-1],state.scenes[i]]=[state.scenes[i],state.scenes[i-1]];
+        }
+        if(act==="down" && i<state.scenes.length-1){
+          [state.scenes[i+1],state.scenes[i]]=[state.scenes[i],state.scenes[i+1]];
+        }
+        if(act==="dup"){
+          const copy = JSON.parse(JSON.stringify(s));
+          copy.id = uid();
+          copy.label += "（複製）";
+          state.scenes.splice(i+1,0,copy);
+        }
+        if(act==="del"){
+          if(confirm(`「${s.label}」を削除しますか？`)) state.scenes.splice(i,1);
+        }
+        renderScenes(); updateScore();
+      };
+    });
+
+    root.appendChild(el);
+  });
+}
+
+function escapeHtml(v){
+  return String(v).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[c]));
+}
+function escapeAttr(v){ return escapeHtml(v); }
+
+function readMeta(){
+  metaIds.forEach(id=>state.meta[id]=document.getElementById(id).value);
+}
+function writeMeta(){
+  metaIds.forEach(id=>document.getElementById(id).value=state.meta[id]||"");
+}
+
+function updateScore(){
+  readMeta();
+  const metaCore = ["title","logline","hero","want","startState","endChange","ending"];
+  let total = metaCore.length + state.scenes.length*4;
+  let filled = metaCore.filter(k=>(state.meta[k]||"").trim()).length;
+  state.scenes.forEach(s=>filled += sceneCompleteness(s));
+  const pct = total ? Math.round(filled/total*100) : 0;
+  document.getElementById("scoreText").textContent = pct+"%";
+  document.getElementById("progressBar").style.width = pct+"%";
+  const hint = pct<30 ? "まずは出来事を雑に置けば十分。空欄があっても進めます。"
+    : pct<70 ? "骨組みが見え始めています。各箱の「結果」を埋めると流れが締まります。"
+    : pct<100 ? "かなり組めています。感情の始点と終点を確認すると本文へ移りやすいです。"
+    : "基本要素が一通り埋まりました。本文に展開できる状態です。";
+  document.getElementById("scoreHint").textContent = hint;
+}
+
+function save(){
+  readMeta();
+  localStorage.setItem("plotbox-data", JSON.stringify(state));
+  alert("ブラウザ内に保存しました。");
+}
+function load(){
+  const raw = localStorage.getItem("plotbox-data");
+  if(!raw){ alert("保存データがありません。"); return; }
+  try{
+    state = JSON.parse(raw);
+    if(!MODES[state.mode]) state.mode="five";
+    state.meta ||= {};
+    state.scenes ||= [];
+    writeMeta(); renderModes(); renderScenes(); updateScore();
+  }catch(e){ alert("保存データを読み込めませんでした。"); }
+}
+function resetAll(){
+  if(!confirm("現在の内容を初期化しますか？")) return;
+  state={mode:"five",meta:{},scenes:[]};
+  writeMeta(); initMode("five",false);
+}
+
+function toMarkdown(){
+  readMeta();
+  const m=state.meta;
+  let out=`# ${m.title || "無題のプロット"}\n\n`;
+  out+=`**形式:** ${MODES[state.mode].name}\n\n`;
+  out+=`## 作品の芯\n\n`;
+  out+=`- **一行でいうと:** ${m.logline||""}\n`;
+  out+=`- **主人公:** ${m.hero||""}\n`;
+  out+=`- **欲しいもの:** ${m.want||""}\n`;
+  out+=`- **怖いもの:** ${m.fear||""}\n`;
+  out+=`- **勘違い・思い込み:** ${m.belief||""}\n`;
+  out+=`- **物語の始まり:** ${m.startState||""}\n`;
+  out+=`- **最大の危機:** ${m.crisis||""}\n`;
+  out+=`- **物語の変化:** ${m.endChange||""}\n`;
+  out+=`- **余韻・オチ:** ${m.ending||""}\n\n`;
+  out+=`## 箱書き\n\n`;
+  state.scenes.forEach((s,i)=>{
+    out+=`### ${i+1}. ${s.label||"無題"}\n\n`;
+    out+=`- **場所:** ${s.place||""}\n`;
+    out+=`- **時間:** ${s.time||""}\n`;
+    out+=`- **視点人物:** ${s.pov||""}\n`;
+    out+=`- **欲しいもの:** ${s.desire||""}\n`;
+    out+=`- **邪魔するもの:** ${s.obstacle||""}\n`;
+    out+=`- **行動:** ${s.action||""}\n`;
+    out+=`- **結果:** ${s.result||""}\n`;
+    out+=`- **次につながる問題:** ${s.next||""}\n`;
+    out+=`- **感情:** ${s.emotionStart||""} → ${s.emotionEnd||""}\n`;
+    if(s.memo) out+=`- **メモ:** ${s.memo}\n`;
+    out+="\n";
+  });
+  return out;
+}
+function download(name,content,type){
+  const blob = new Blob([content],{type});
+  const a=document.createElement("a");
+  a.href=URL.createObjectURL(blob);
+  a.download=name;
+  a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),500);
+}
+
+document.getElementById("addSceneBtn").onclick=()=>{
+  state.scenes.push(blankScene(`箱 ${state.scenes.length+1}`,state.scenes.length));
+  renderScenes(); updateScore();
+};
+document.getElementById("saveBtn").onclick=save;
+document.getElementById("loadBtn").onclick=load;
+document.getElementById("resetBtn").onclick=resetAll;
+document.getElementById("exportMdBtn").onclick=()=>{
+  const name=(document.getElementById("title").value||"plot").replace(/[\\/:*?"<>|]/g,"_");
+  download(name+".md",toMarkdown(),"text/markdown;charset=utf-8");
+};
+document.getElementById("exportJsonBtn").onclick=()=>{
+  readMeta();
+  const name=(state.meta.title||"plot").replace(/[\\/:*?"<>|]/g,"_");
+  download(name+".json",JSON.stringify(state,null,2),"application/json;charset=utf-8");
+};
+
+metaIds.forEach(id=>document.getElementById(id).addEventListener("input",updateScore));
+
+initMode("five",false);
+</script>
+</body>
+</html>
