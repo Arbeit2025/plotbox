@@ -133,6 +133,8 @@ details .hint{margin-top:10px}
       <button id="loadBtn">読込</button>
       <button id="exportMdBtn">Markdown</button>
       <button id="exportJsonBtn">JSON</button>
+      <button id="importJsonBtn">JSONから復元</button>
+      <input id="importJsonFile" type="file" accept=".json,application/json" hidden>
       <button id="resetBtn" class="danger">初期化</button>
     </div>
   </div>
@@ -439,21 +441,59 @@ function updateScore(){
   document.getElementById("scoreHint").textContent = hint;
 }
 
+function validatePlotData(data){
+  if(!data || typeof data!=="object" || Array.isArray(data) ||
+     typeof data.mode!=="string" || !Object.prototype.hasOwnProperty.call(MODES,data.mode) ||
+     !data.meta || typeof data.meta!=="object" || Array.isArray(data.meta) ||
+     !Array.isArray(data.scenes)) throw new Error("PlotBoxのJSON形式ではありません。");
+  const clean={mode:data.mode,meta:{},scenes:[]};
+  metaIds.forEach(key=>{
+    if(data.meta[key]!==undefined && typeof data.meta[key]!=="string") throw new Error("作品情報の形式が不正です。");
+    clean.meta[key]=data.meta[key] || "";
+  });
+  clean.scenes=data.scenes.map((scene,i)=>{
+    if(!scene || typeof scene!=="object" || Array.isArray(scene)) throw new Error("箱の形式が不正です。");
+    const item=blankScene("",i);
+    Object.keys(item).forEach(key=>{
+      if(scene[key]!==undefined){
+        if(typeof scene[key]!=="string") throw new Error("箱の項目は文字列で指定してください。");
+        item[key]=scene[key];
+      }
+    });
+    return item;
+  });
+  return clean;
+}
+function applyPlotData(candidate){
+  state=candidate;
+  writeMeta(); renderModes(); renderScenes(); updateScore();
+}
 function save(){
   readMeta();
-  localStorage.setItem("plotbox-data", JSON.stringify(state));
-  alert("ブラウザ内に保存しました。");
+  try{
+    localStorage.setItem("plotbox-data", JSON.stringify(state));
+    alert("ブラウザ内に保存しました。");
+  }catch(e){ alert("ブラウザ内に保存できませんでした。JSONを書き出して保管してください。"); }
 }
 function load(){
-  const raw = localStorage.getItem("plotbox-data");
-  if(!raw){ alert("保存データがありません。"); return; }
   try{
-    state = JSON.parse(raw);
-    if(!MODES[state.mode]) state.mode="five";
-    state.meta ||= {};
-    state.scenes ||= [];
-    writeMeta(); renderModes(); renderScenes(); updateScore();
-  }catch(e){ alert("保存データを読み込めませんでした。"); }
+    const raw=localStorage.getItem("plotbox-data");
+    if(!raw){ alert("保存データがありません。"); return; }
+    const candidate=validatePlotData(JSON.parse(raw));
+    if(!confirm("保存データで現在の内容を置き換えますか？")) return;
+    applyPlotData(candidate);
+  }catch(e){ alert("保存データを読み込めませんでした。現在の内容は保持します。"); }
+}
+async function importPlotFile(file){
+  if(!file) return;
+  try{
+    const candidate=validatePlotData(JSON.parse(await file.text()));
+    if(!confirm("JSONファイルで現在の内容を置き換え、ブラウザ内にも保存しますか？")) return;
+    // Save before replacing the editor so storage failures preserve current work.
+    localStorage.setItem("plotbox-data",JSON.stringify(candidate));
+    applyPlotData(candidate);
+    alert("JSONから復元しました。");
+  }catch(e){ alert("復元できませんでした。現在の内容は保持します。\n"+String(e.message||e)); }
 }
 function resetAll(){
   if(!confirm("現在の内容を初期化しますか？")) return;
@@ -508,6 +548,11 @@ document.getElementById("addSceneBtn").onclick=()=>{
 };
 document.getElementById("saveBtn").onclick=save;
 document.getElementById("loadBtn").onclick=load;
+document.getElementById("importJsonBtn").onclick=()=>document.getElementById("importJsonFile").click();
+document.getElementById("importJsonFile").onchange=async e=>{
+  try{ await importPlotFile(e.target.files[0]); }
+  finally{ e.target.value=""; }
+};
 document.getElementById("resetBtn").onclick=resetAll;
 document.getElementById("exportMdBtn").onclick=()=>{
   const name=(document.getElementById("title").value||"plot").replace(/[\\/:*?"<>|]/g,"_");
@@ -525,3 +570,4 @@ initMode("five",false);
 </script>
 </body>
 </html>
+
